@@ -57,6 +57,51 @@ Chaque langage est mesuré **N fois** (défaut 5). La médiane est retenue (pas 
 
 ## Architecture du code
 
+### Moteur commun (`lib/engine.sh`)
+
+Les trois orchestrateurs (`bench_ram.sh`, `bench_startup.sh`, `bench_compare.sh`) partagent un moteur commun qui factorise :
+
+- **`engine_init`** : parsing des arguments (`-n`, `-f`, `-o`), gestion de `--version`/`--help`, création d'un workspace temporaire isolé par PID (`/tmp/bench_workspace_$$`), sourcing des librairies communes.
+- **`engine_iterate_langs`** : boucle sur `langs/*.sh`, reset des fonctions et variables entre chaque adaptateur (`unset -f`), source l'adaptateur, vérifie la disponibilité du toolchain (`check_cmd`), puis appelle un callback défini par l'orchestrateur.
+- **`engine_finish`** : export des résultats via `export_all` puis nettoyage du workspace.
+
+Chaque orchestrateur se réduit à ~50 lignes : init, définition du callback, itération, affichage, finish.
+
+### Adaptateurs auto-descriptifs (`langs/*.sh`)
+
+Chaque fichier `langs/*.sh` est un adaptateur autonome qui déclare :
+
+**Métadonnées :**
+- `lang_name` : nom d'affichage (ex: `"C"`, `"Rust"`)
+- `lang_cmd` : commande vérifiée par `check_cmd` (ex: `"gcc"`, `"rustc"`)
+- `lang_type` : `"compiled"` ou `"interpreted"` — utilisé par `bench_compare.sh` pour savoir si les profils de compilation s'appliquent
+
+**Fonctions RAM :**
+- `lang_prepare <ws> [flags]` : écrit le source et compile dans le workspace
+- `lang_write_runner <ws>` : écrit `run.sh` avec `exec`
+
+**Fonctions startup :**
+- `lang_startup_prepare <ws> [flags]` : prépare un programme qui exit immédiatement
+- `lang_startup_runner <ws>` : écrit le runner startup
+
+**Fonction compare (optionnelle, langages compilés) :**
+- `lang_compare_flags <profile>` : retourne les flags pour un profil donné (`debug`, `release`, `static`, `stripped`). Si absente, des flags par défaut gcc-style sont utilisés.
+
+Avant la v0.2, les fonctions startup vivaient dans un dossier séparé `langs/startup/*.sh` (15 fichiers dupliqués). Elles sont maintenant fusionnées dans l'adaptateur principal — un seul fichier par langage, pas de duplication.
+
+### Export schema-driven (`lib/export.sh`)
+
+L'export utilise trois writers génériques (`_export_csv`, `_export_json`, `_export_md`) pilotés par un schéma déclaré dans `export_all` :
+
+```
+export_all <type> <output_dir> <results...>
+```
+
+Le schéma (noms de champs, types `s`=string / `n`=number) est défini par type de benchmark. Les writers n'ont aucune connaissance du domaine — ils itèrent sur les champs et appliquent le typage :
+- CSV : header + valeurs séparées par virgules
+- JSON : objets typés (`"N/A"` → `null`, numériques sans quotes)
+- Markdown : header + lignes formatées par une fonction de rendu spécifique au type
+
 ### Pourquoi découper en `langs/*.sh` ?
 
 - **Extensibilité** : ajouter un langage = créer un fichier. Pas de modification de l'orchestrateur.
@@ -125,6 +170,8 @@ Pour un interprète : tout ça + parsing du runtime + initialisation du GC/VM + 
 ## Comparaison de profils (`bench_compare.sh`)
 
 ### Profils testés
+
+Chaque langage compilé déclare ses flags via `lang_compare_flags <profile>` dans son adaptateur. Les langages sans cette fonction utilisent un fallback gcc-style (`DEFAULT_PROFILES`).
 
 | Profil | Flags C/C++ | Flags Rust | Ce que ça teste |
 |--------|-------------|-----------|-----------------|
