@@ -130,6 +130,7 @@ bench_ram/
 ├── bench_ram.sh          # Benchmark RAM (principal)
 ├── bench_startup.sh      # Benchmark temps de démarrage
 ├── bench_compare.sh      # Comparatif debug/release/static/stripped
+├── Justfile              # Tâches (just --list pour voir les recettes)
 ├── lib/
 │   ├── measure.sh        # Moteur de mesure RAM (poll, stabilisation, médiane)
 │   ├── startup.sh        # Moteur de mesure startup time
@@ -143,8 +144,36 @@ bench_ram/
 │   ├── c.sh
 │   ├── cpp.sh
 │   └── ...
-└── docs/
-    └── architecture.md   # Choix techniques et méthodologie
+├── docs/
+│   └── architecture.md   # Choix techniques et méthodologie
+├── .github/
+│   └── workflows/ci.yml  # CI GitHub Actions (shellcheck + shfmt)
+├── .pre-commit-config.yaml
+├── .shellcheckrc
+└── .editorconfig
+```
+
+## Développement
+
+### Lint & format
+
+```bash
+just lint          # Analyse statique (shellcheck)
+just format-check  # Vérification du formatage (shfmt, pas de modification)
+just format        # Auto-formatage en place
+just ci            # lint + format-check
+```
+
+Les mêmes vérifications tournent automatiquement :
+- **Pre-commit hooks** : bloquent le commit si lint/format échoue
+- **GitHub Actions** : sur push/PR vers master/main
+
+### Recettes utilitaires
+
+```bash
+just langs         # Liste les toolchains installés/manquants avec versions
+just check         # Vérifie que les scripts sont exécutables
+just tree          # Affiche la structure du projet
 ```
 
 ## Ajouter un langage
