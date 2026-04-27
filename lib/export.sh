@@ -1,34 +1,51 @@
 #!/bin/bash
 # export.sh — Export benchmark results to CSV, JSON, and Markdown.
+# Schema-driven: field definitions live in export_all, format writers are generic.
 
-# Write RAM benchmark results to CSV.
-# Usage: export_ram_csv <output_file> <sorted_results_array_name>
-export_ram_csv() {
-    local output="$1"
-    shift
-    local lines=("$@")
+# ── Generic format writers ───────────────────────────────────
+
+# Write CSV file from space-separated results.
+# Usage: _export_csv <output> <header> <results...>
+_export_csv() {
+    local output="$1" header="$2"
+    shift 2
     {
-        echo "language,vmsize_kb,vmrss_kb,rssanon_kb"
-        for line in "${lines[@]}"; do
-            read -r name vs vr ra <<<"$line"
-            echo "$name,$vs,$vr,$ra"
+        echo "$header"
+        for line in "$@"; do
+            echo "${line// /,}"
         done
     } >"$output"
 }
 
-# Write RAM benchmark results to JSON.
-export_ram_json() {
+# Write JSON file from space-separated results.
+# Usage: _export_json <output> <keys> <types> <results...>
+# keys: space-separated JSON field names
+# types: space-separated (s=string, n=number), matching keys positionally
+_export_json() {
     local output="$1"
-    shift
-    local lines=("$@")
+    local -a keys types
+    read -ra keys <<<"$2"
+    read -ra types <<<"$3"
+    shift 3
     {
         echo "["
         local first=1
-        for line in "${lines[@]}"; do
-            read -r name vs vr ra <<<"$line"
+        for line in "$@"; do
+            local -a vals
+            read -ra vals <<<"$line"
             [[ $first -eq 0 ]] && echo ","
-            printf '  {"language": "%s", "vmsize_kb": %s, "vmrss_kb": %s, "rssanon_kb": %s}' \
-                "$name" "$vs" "$vr" "$ra"
+            printf '  {'
+            for i in "${!keys[@]}"; do
+                ((i > 0)) && printf ', '
+                if [[ "${vals[$i]}" == "N/A" ]]; then
+                    printf '"%s": null' "${keys[$i]}"
+                elif [[ "${types[$i]}" == "n" ]]; then
+                    printf '"%s": %s' "${keys[$i]}" "${vals[$i]}"
+                else
+                    printf '"%s": "%s"' "${keys[$i]}" "${vals[$i]}"
+                fi
+            done
+            printf '}'
             first=0
         done
         echo ""
@@ -36,105 +53,41 @@ export_ram_json() {
     } >"$output"
 }
 
-# Write RAM benchmark results to Markdown table.
-export_ram_md() {
-    local output="$1"
-    shift
-    local lines=("$@")
+# Write Markdown table from results.
+# Usage: _export_md <output> <header> <separator> <row_fn> <results...>
+# row_fn: function that formats one result line into a Markdown row
+_export_md() {
+    local output="$1" header="$2" separator="$3" row_fn="$4"
+    shift 4
     {
-        echo "| Langage | VmSize (kB) | VmRSS (kB) | RssAnon (kB) |"
-        echo "|---------|------------:|----------:|-------------:|"
-        for line in "${lines[@]}"; do
-            read -r name vs vr ra <<<"$line"
-            echo "| $name | $vs | $vr | $ra |"
+        echo "$header"
+        echo "$separator"
+        for line in "$@"; do
+            "$row_fn" "$line"
         done
     } >"$output"
 }
 
-# Write startup benchmark results to CSV.
-export_startup_csv() {
-    local output="$1"
-    shift
-    local lines=("$@")
-    {
-        echo "language,startup_us"
-        for line in "${lines[@]}"; do
-            read -r name time_us <<<"$line"
-            echo "$name,$time_us"
-        done
-    } >"$output"
+# ── Markdown row formatters ──────────────────────────────────
+
+_md_row_ram() {
+    read -r name vs vr ra <<<"$1"
+    echo "| $name | $vs | $vr | $ra |"
 }
 
-# Write startup benchmark results to JSON.
-export_startup_json() {
-    local output="$1"
-    shift
-    local lines=("$@")
-    {
-        echo "["
-        local first=1
-        for line in "${lines[@]}"; do
-            read -r name time_us <<<"$line"
-            [[ $first -eq 0 ]] && echo ","
-            printf '  {"language": "%s", "startup_us": %s}' "$name" "$time_us"
-            first=0
-        done
-        echo ""
-        echo "]"
-    } >"$output"
+_md_row_startup() {
+    read -r name time_us <<<"$1"
+    local time_ms
+    time_ms=$(awk "BEGIN {printf \"%.2f\", $time_us / 1000}")
+    echo "| $name | $time_us | $time_ms |"
 }
 
-# Write startup benchmark results to Markdown table.
-export_startup_md() {
-    local output="$1"
-    shift
-    local lines=("$@")
-    {
-        echo "| Langage | Startup (µs) | Startup (ms) |"
-        echo "|---------|-------------:|-------------:|"
-        for line in "${lines[@]}"; do
-            read -r name time_us <<<"$line"
-            local time_ms
-            time_ms=$(awk "BEGIN {printf \"%.2f\", $time_us / 1000}")
-            echo "| $name | $time_us | $time_ms |"
-        done
-    } >"$output"
+_md_row_compare() {
+    read -r name d r s st <<<"$1"
+    echo "| $name | $d | $r | $s | $st |"
 }
 
-# Write compare benchmark results to CSV.
-export_compare_csv() {
-    local output="$1"
-    shift
-    local lines=("$@")
-    {
-        echo "language,debug_kb,release_kb,static_kb,stripped_kb"
-        for line in "${lines[@]}"; do
-            # Format: "name debug release static stripped"
-            read -r name d r s st <<<"$line"
-            echo "$name,$d,$r,$s,$st"
-        done
-    } >"$output"
-}
-
-# Write compare benchmark results to JSON.
-export_compare_json() {
-    local output="$1"
-    shift
-    local lines=("$@")
-    {
-        echo "["
-        local first=1
-        for line in "${lines[@]}"; do
-            read -r name d r s st <<<"$line"
-            [[ $first -eq 0 ]] && echo ","
-            printf '  {"language": "%s", "debug_kb": "%s", "release_kb": "%s", "static_kb": "%s", "stripped_kb": "%s"}' \
-                "$name" "$d" "$r" "$s" "$st"
-            first=0
-        done
-        echo ""
-        echo "]"
-    } >"$output"
-}
+# ── Main export dispatcher ───────────────────────────────────
 
 # Export all formats for a given benchmark type.
 # Usage: export_all <type> <output_dir> <results...>
@@ -148,21 +101,50 @@ export_all() {
 
     local ts
     ts=$(date +%Y%m%d_%H%M%S)
+    local base="$outdir/${type}_${ts}"
 
     case "$type" in
         ram)
-            export_ram_csv "$outdir/ram_${ts}.csv" "${results[@]}"
-            export_ram_json "$outdir/ram_${ts}.json" "${results[@]}"
-            export_ram_md "$outdir/ram_${ts}.md" "${results[@]}"
+            _export_csv "$base.csv" \
+                "language,vmsize_kb,vmrss_kb,rssanon_kb" \
+                "${results[@]}"
+            _export_json "$base.json" \
+                "language vmsize_kb vmrss_kb rssanon_kb" \
+                "s n n n" \
+                "${results[@]}"
+            _export_md "$base.md" \
+                "| Langage | VmSize (kB) | VmRSS (kB) | RssAnon (kB) |" \
+                "|---------|------------:|----------:|-------------:|" \
+                _md_row_ram \
+                "${results[@]}"
             ;;
         startup)
-            export_startup_csv "$outdir/startup_${ts}.csv" "${results[@]}"
-            export_startup_json "$outdir/startup_${ts}.json" "${results[@]}"
-            export_startup_md "$outdir/startup_${ts}.md" "${results[@]}"
+            _export_csv "$base.csv" \
+                "language,startup_us" \
+                "${results[@]}"
+            _export_json "$base.json" \
+                "language startup_us" \
+                "s n" \
+                "${results[@]}"
+            _export_md "$base.md" \
+                "| Langage | Startup (µs) | Startup (ms) |" \
+                "|---------|-------------:|-------------:|" \
+                _md_row_startup \
+                "${results[@]}"
             ;;
         compare)
-            export_compare_csv "$outdir/compare_${ts}.csv" "${results[@]}"
-            export_compare_json "$outdir/compare_${ts}.json" "${results[@]}"
+            _export_csv "$base.csv" \
+                "language,debug_kb,release_kb,static_kb,stripped_kb" \
+                "${results[@]}"
+            _export_json "$base.json" \
+                "language debug_kb release_kb static_kb stripped_kb" \
+                "s n n n n" \
+                "${results[@]}"
+            _export_md "$base.md" \
+                "| Langage | debug (kB) | release (kB) | static (kB) | stripped (kB) |" \
+                "|---------|----------:|------------:|----------:|-------------:|" \
+                _md_row_compare \
+                "${results[@]}"
             ;;
     esac
 

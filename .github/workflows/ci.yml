@@ -40,4 +40,4 @@ jobs:
         run: |
           shfmt -d -i 4 -bn -ci \
             bench_ram.sh bench_startup.sh bench_compare.sh \
-            lib/*.sh langs/*.sh langs/startup/*.sh
+            lib/*.sh langs/*.sh
