@@ -26,6 +26,8 @@ Les langages dont le toolchain n'est pas installé sont automatiquement ignorés
 
 ## Usage
 
+### Benchmark RAM (principal)
+
 ```bash
 # Exécution par défaut (5 runs, flags par défaut)
 ./bench_ram.sh
@@ -42,6 +44,25 @@ Les langages dont le toolchain n'est pas installé sont automatiquement ignorés
 ./bench_ram.sh -n 10 -f "-O3"
 ```
 
+### Benchmark startup time
+
+Mesure le temps de démarrage (cold-start) de chaque langage via un programme qui exit immédiatement.
+
+```bash
+./bench_startup.sh           # 5 runs par défaut
+./bench_startup.sh -n 10     # 10 runs pour plus de précision
+./bench_startup.sh -f "-O3"  # Avec flags de compilation
+```
+
+### Benchmark comparatif (debug/release/static/stripped)
+
+Compare l'empreinte RAM selon le profil de compilation pour les langages compilés.
+
+```bash
+./bench_compare.sh           # 3 runs par profil
+./bench_compare.sh -n 5      # 5 runs par profil
+```
+
 ### Options
 
 | Flag | Description | Défaut |
@@ -50,6 +71,8 @@ Les langages dont le toolchain n'est pas installé sont automatiquement ignorés
 | `-f <flags>` | Flags de compilation passés aux compilateurs | Défaut par langage |
 
 ## Exemple de sortie
+
+### bench_ram.sh
 
 ```
 Langage      |  VmSize (Virt) |  VmRSS (Total) | RssAnon (Excl)
@@ -65,6 +88,33 @@ Ruby         |    469856 kB |     19296 kB |     13524 kB
 Node.js      |   1428792 kB |     58680 kB |     13704 kB
 ```
 
+### bench_startup.sh
+
+```
+Langage      |  Startup (µs) |   Startup (ms)
+---------------------------------------------
+C            |        0 µs |      0.00 ms
+Rust         |        0 µs |      0.00 ms
+C++          |      233 µs |      0.23 ms
+Go           |      407 µs |      0.41 ms
+Lua          |     1359 µs |      1.36 ms
+Perl         |     2747 µs |      2.75 ms
+Ruby         |   206468 µs |    206.47 ms
+Node.js      |   251925 µs |    251.93 ms
+Python       |   282479 µs |    282.48 ms
+```
+
+### bench_compare.sh
+
+```
+Langage      |      debug |    release |     static |   stripped
+------------------------------------------------------------------------
+C            |      100 kB |      100 kB |       52 kB |      104 kB
+C++          |      100 kB |      104 kB |       56 kB |      100 kB
+Rust         |      124 kB |      124 kB |       80 kB |      128 kB
+Go           |     2244 kB |     2248 kB |     2248 kB |     2248 kB
+```
+
 Les résultats sont triés par **RssAnon croissant** (le plus léger en premier).
 
 ## Prérequis
@@ -77,14 +127,21 @@ Les résultats sont triés par **RssAnon croissant** (le plus léger en premier)
 
 ```
 bench_ram/
-├── bench_ram.sh          # Orchestrateur principal
+├── bench_ram.sh          # Benchmark RAM (principal)
+├── bench_startup.sh      # Benchmark temps de démarrage
+├── bench_compare.sh      # Comparatif debug/release/static/stripped
 ├── lib/
-│   ├── measure.sh        # Moteur de mesure (poll, stabilisation, médiane)
+│   ├── measure.sh        # Moteur de mesure RAM (poll, stabilisation, médiane)
+│   ├── startup.sh        # Moteur de mesure startup time
 │   └── utils.sh          # Utilitaires (check_cmd, median, formatage)
-├── langs/                # Un fichier par langage
+├── langs/                # Un fichier par langage (boucle infinie)
 │   ├── c.sh
 │   ├── cpp.sh
 │   ├── rust.sh
+│   └── ...
+├── langs/startup/        # Un fichier par langage (exit immédiat)
+│   ├── c.sh
+│   ├── cpp.sh
 │   └── ...
 └── docs/
     └── architecture.md   # Choix techniques et méthodologie

@@ -101,3 +101,50 @@ Les résultats sont triés par **RssAnon croissant**. C'est la métrique la plus
 - **cgroups** : si le système utilise des cgroups avec memory limits, les mesures restent valides mais ne sont pas comparables entre machines.
 - **Huge pages** : si le kernel utilise transparent huge pages (THP), RssAnon peut être arrondi à 2 MB. Vérifier avec `cat /sys/kernel/mm/transparent_hugepage/enabled`.
 - **Java** : le source-file launch mode (`java File.java`) inclut le compilateur dans le processus. Pour une mesure plus précise, on pourrait pré-compiler et lancer `java -cp . Loop`. Mais cela reflète l'usage réel (le dev tape `java File.java`).
+
+## Mesure du temps de démarrage (`bench_startup.sh`)
+
+### Méthodologie
+
+Le startup time est mesuré via wall-clock : on capture `date +%s%N` (nanosecond precision) avant et après l'exécution d'un programme qui exit immédiatement. La différence donne le temps total : fork + exec + loader + runtime init + exit.
+
+### Calibration du shell overhead
+
+Un wrapper bash (`run.sh` avec `exec`) ajoute un overhead incompressible (~10ms). Pour l'isoler :
+1. On mesure d'abord le temps de `exec true` (programme le plus rapide possible)
+2. Ce temps est soustrait de toutes les mesures
+3. Si un langage est plus rapide que le shell overhead, il apparaît à 0µs
+
+Cela signifie que les résultats < 1ms sont dans la marge d'erreur et effectivement "instantanés" du point de vue du system.
+
+### Ce que ça mesure vraiment
+
+Pour un binaire compilé : temps de `execve()` → dynamic linker → `_start` → `main()` → `exit()`.
+Pour un interprète : tout ça + parsing du runtime + initialisation du GC/VM + interprétation du code vide.
+
+## Comparaison de profils (`bench_compare.sh`)
+
+### Profils testés
+
+| Profil | Flags C/C++ | Flags Rust | Ce que ça teste |
+|--------|-------------|-----------|-----------------|
+| **debug** | `-O0 -g` | `-C opt-level=0 -g` | Baseline sans optimisation, avec symboles debug |
+| **release** | `-O2` | `-C opt-level=2` | Optimisations standard |
+| **static** | `-O2 -static` | `-C opt-level=2 -C target-feature=+crt-static` | Linkage statique, pas de `.so` |
+| **stripped** | `-O2 -s` | `-C opt-level=2 -C strip=symbols` | Symboles retirés |
+
+### Pourquoi Go est invariant ?
+
+Go lie toujours statiquement son runtime (pas de `libgo.so`). Les flags `-static` et `-s` n'ont pas d'impact significatif car le runtime Go pré-alloue toujours la même quantité de heap pour le GC et le stack management.
+
+### Pourquoi static réduit RssAnon ?
+
+Contre-intuitif : le binaire est plus gros, mais RssAnon baisse. Explication :
+- En dynamic, le loader (`ld-linux.so`) alloue des structures anonymes pour résoudre les symboles (GOT, PLT, relocation tables).
+- En static, il n'y a pas de loader overhead. Le binaire est auto-suffisant.
+- Le `.text` plus gros apparaît dans VmSize mais pas dans RssAnon (c'est du file-backed mapping, pas anonyme).
+
+### Langages interprétés
+
+Les flags de compilation ne s'appliquent pas — l'interprète est déjà compilé par le système. La valeur est affichée une seule fois pour référence.
+
