@@ -10,85 +10,36 @@ set -uo pipefail
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION=$(cat "$SCRIPT_DIR/VERSION")
-WORKSPACE="/tmp/ram_bench_workspace"
-N_RUNS="${BENCH_RUNS:-5}"
+source "$SCRIPT_DIR/lib/engine.sh"
+engine_init "bench_ram" 5 "[-n runs] [-f 'compiler flags'] [-o output_dir]" "n:f:o:" "$@"
 
-# Handle --version / --help before getopts
-case "${1:-}" in
-    --version)
-        echo "bench_ram $VERSION"
-        exit 0
-        ;;
-    --help | -h)
-        echo "Usage: $0 [-n runs] [-f 'compiler flags'] [-o output_dir]"
-        exit 0
-        ;;
-esac
-
-# Source libraries
-source "$SCRIPT_DIR/lib/utils.sh"
 source "$SCRIPT_DIR/lib/measure.sh"
-source "$SCRIPT_DIR/lib/export.sh"
-
-# Parse arguments
-OPT_FLAGS=""
-OUTPUT_DIR=""
-while getopts "n:f:o:" opt; do
-    case $opt in
-        n) N_RUNS="$OPTARG" ;;
-        f) OPT_FLAGS="$OPTARG" ;; # e.g. "-O3" or "-O0 -static"
-        o) OUTPUT_DIR="$OPTARG" ;;
-        *)
-            echo "Usage: $0 [-n runs] [-f 'compiler flags'] [-o output_dir]"
-            exit 1
-            ;;
-    esac
-done
-
-# Setup workspace
-rm -rf "$WORKSPACE"
-mkdir -p "$WORKSPACE"
 
 echo "====================================================================="
 echo "  BENCHMARK: Empreinte RAM — boucle infinie (Linux /proc/status)"
 echo "  Runs: $N_RUNS | Compiler flags: ${OPT_FLAGS:-(default per lang)}"
 echo "====================================================================="
 
-# Collect results: array of "lang vmsize vmrss rssanon"
 declare -a RESULTS=()
 
-# Run each language
-for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
-    # Reset lang vars
-    unset -f lang_prepare lang_run lang_write_runner
-    lang_name="" lang_cmd=""
-
-    source "$lang_file"
-
-    # Check command availability
-    if ! check_cmd "$lang_cmd" "$lang_name"; then
-        continue
-    fi
-
-    # Prepare (compile if needed), writes $WORKSPACE/run.sh
+run_ram_lang() {
     if [[ -n "$OPT_FLAGS" ]]; then
         lang_prepare "$WORKSPACE" "$OPT_FLAGS" 2>/dev/null
     else
         lang_prepare "$WORKSPACE" 2>/dev/null
     fi
 
-    # Generate launcher script
     lang_write_runner "$WORKSPACE"
     chmod +x "$WORKSPACE/run.sh"
 
-    # Run benchmark
     result=$(run_benchmark "$lang_name" "$N_RUNS" "$WORKSPACE/run.sh")
     read -r vs vr ra <<<"$result"
     RESULTS+=("$lang_name $vs $vr $ra")
 
     printf "  ✓ %-12s done (%d runs)\n" "$lang_name" "$N_RUNS" >&2
-done
+}
+
+engine_iterate_langs run_ram_lang
 
 echo "=====================================================================" >&2
 
@@ -98,8 +49,7 @@ printf "%-12s | %14s | %14s | %14s\n" "Langage" "VmSize (Virt)" "VmRSS (Total)" 
 echo "-----------------------------------------------------------------------"
 
 mapfile -t sorted < <(for r in "${RESULTS[@]}"; do
-    read -r name vs vr ra <<<"$r"
-    printf "%s %s %s %s\n" "$name" "$vs" "$vr" "$ra"
+    echo "$r"
 done | sort -t' ' -k4 -n)
 
 for line in "${sorted[@]}"; do
@@ -110,11 +60,4 @@ done
 
 echo "======================================================================="
 
-# Export results if -o specified
-if [[ -n "$OUTPUT_DIR" ]]; then
-    export_all "ram" "$OUTPUT_DIR" "${sorted[@]}"
-fi
-
-# Cleanup
-cd /tmp || exit 1
-rm -rf "$WORKSPACE"
+engine_finish "ram" "${sorted[@]}"
