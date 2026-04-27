@@ -55,6 +55,27 @@ optlevels:
     @echo "═══ -O3 (aggressive) ═══"
     ./bench_ram.sh -n 3 -f "-O3"
 
+# ─── Export & Visualization ──────────────────────────────────
+
+# Run all benchmarks and export results to results/
+export *ARGS:
+    ./bench_ram.sh -o results {{ARGS}}
+    ./bench_startup.sh -o results {{ARGS}}
+    ./bench_compare.sh -o results {{ARGS}}
+
+# Generate ASCII bar chart from the latest RAM export
+plot-ram:
+    @python3 scripts/plot.py "$$(ls -t results/ram_*.csv 2>/dev/null | head -1)" --ascii
+
+# Generate ASCII bar chart from the latest startup export
+plot-startup:
+    @python3 scripts/plot.py "$$(ls -t results/startup_*.csv 2>/dev/null | head -1)" --ascii
+
+# Generate PNG charts (requires matplotlib: pip install matplotlib)
+plot-png:
+    @python3 scripts/plot.py "$$(ls -t results/ram_*.csv 2>/dev/null | head -1)" -o results/ram_chart.png
+    @python3 scripts/plot.py "$$(ls -t results/startup_*.csv 2>/dev/null | head -1)" -o results/startup_chart.png
+
 # ─── Utilities ───────────────────────────────────────────────
 
 # List all supported languages and their toolchain availability
@@ -98,6 +119,10 @@ check:
     [[ $fail -eq 0 ]]
 
 # ─── Lint & Format ───────────────────────────────────────────
+
+# Show project version
+version:
+    @cat VERSION
 
 # Run shellcheck on all scripts
 lint:
