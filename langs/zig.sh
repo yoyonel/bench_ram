@@ -5,7 +5,7 @@ lang_cmd="zig"
 
 lang_prepare() {
     local ws="$1"
-    cat > "$ws/loop.zig" << 'EOF'
+    cat >"$ws/loop.zig" <<'EOF'
 pub fn main() void {
     while (true) {}
 }
@@ -15,6 +15,6 @@ EOF
 
 lang_write_runner() {
     local ws="$1"
-    echo '#!/bin/bash' > "$ws/run.sh"
-    echo "exec \"$ws/loop_zig\"" >> "$ws/run.sh"
+    echo '#!/bin/bash' >"$ws/run.sh"
+    echo "exec \"$ws/loop_zig\"" >>"$ws/run.sh"
 }

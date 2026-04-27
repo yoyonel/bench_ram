@@ -22,8 +22,11 @@ OPT_FLAGS=""
 while getopts "n:f:" opt; do
     case $opt in
         n) N_RUNS="$OPTARG" ;;
-        f) OPT_FLAGS="$OPTARG" ;;  # e.g. "-O3" or "-O0 -static"
-        *) echo "Usage: $0 [-n runs] [-f 'compiler flags']"; exit 1 ;;
+        f) OPT_FLAGS="$OPTARG" ;; # e.g. "-O3" or "-O0 -static"
+        *)
+            echo "Usage: $0 [-n runs] [-f 'compiler flags']"
+            exit 1
+            ;;
     esac
 done
 
@@ -65,7 +68,7 @@ for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
 
     # Run benchmark
     result=$(run_benchmark "$lang_name" "$N_RUNS" "$WORKSPACE/run.sh")
-    read -r vs vr ra <<< "$result"
+    read -r vs vr ra <<<"$result"
     RESULTS+=("$lang_name $vs $vr $ra")
 
     printf "  ✓ %-12s done (%d runs)\n" "$lang_name" "$N_RUNS" >&2
@@ -78,14 +81,13 @@ echo ""
 printf "%-12s | %14s | %14s | %14s\n" "Langage" "VmSize (Virt)" "VmRSS (Total)" "RssAnon (Excl)"
 echo "-----------------------------------------------------------------------"
 
-IFS=$'\n' sorted=($(for r in "${RESULTS[@]}"; do
-    read -r name vs vr ra <<< "$r"
+mapfile -t sorted < <(for r in "${RESULTS[@]}"; do
+    read -r name vs vr ra <<<"$r"
     printf "%s %s %s %s\n" "$name" "$vs" "$vr" "$ra"
-done | sort -t' ' -k4 -n))
-unset IFS
+done | sort -t' ' -k4 -n)
 
 for line in "${sorted[@]}"; do
-    read -r name vs vr ra <<< "$line"
+    read -r name vs vr ra <<<"$line"
     printf "%-12s | %12s | %12s | %12s\n" \
         "$name" "$(fmt_kb "$vs")" "$(fmt_kb "$vr")" "$(fmt_kb "$ra")"
 done
@@ -93,5 +95,5 @@ done
 echo "======================================================================="
 
 # Cleanup
-cd /tmp
+cd /tmp || exit 1
 rm -rf "$WORKSPACE"

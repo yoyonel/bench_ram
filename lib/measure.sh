@@ -29,9 +29,9 @@ wait_stable_and_measure() {
     while ((elapsed < max_ms)); do
         local rss
         rss=$(read_proc_metric "$pid" "VmRSS")
-        [[ -z "$rss" ]] && break  # process gone
+        [[ -z "$rss" ]] && break # process gone
 
-        local delta=$(( rss > prev_rss ? rss - prev_rss : prev_rss - rss ))
+        local delta=$((rss > prev_rss ? rss - prev_rss : prev_rss - rss))
         if ((delta < THRESHOLD_KB)); then
             ((stable++))
         else
@@ -88,7 +88,7 @@ run_benchmark() {
     for ((i = 0; i < n; i++)); do
         local result
         result=$(run_once "$lang" "$script")
-        read -r vs vr ra <<< "$result"
+        read -r vs vr ra <<<"$result"
         vmsize_arr+=("$vs")
         vmrss_arr+=("$vr")
         rssanon_arr+=("$ra")

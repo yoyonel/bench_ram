@@ -17,7 +17,7 @@ check_cmd() {
 # Usage: median <val1> <val2> ... <valN>
 median() {
     local sorted
-    sorted=($(printf '%s\n' "$@" | sort -n))
+    mapfile -t sorted < <(printf '%s\n' "$@" | sort -n)
     local n=${#sorted[@]}
     echo "${sorted[$((n / 2))]}"
 }

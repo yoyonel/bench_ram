@@ -20,7 +20,10 @@ source "$SCRIPT_DIR/lib/measure.sh"
 while getopts "n:" opt; do
     case $opt in
         n) N_RUNS="$OPTARG" ;;
-        *) echo "Usage: $0 [-n runs]"; exit 1 ;;
+        *)
+            echo "Usage: $0 [-n runs]"
+            exit 1
+            ;;
     esac
 done
 
@@ -77,7 +80,7 @@ echo "------------------------------------------------------------------------"
 
 # Process each language
 for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
-    [[ -d "$lang_file" ]] && continue  # skip startup/ directory
+    [[ -d "$lang_file" ]] && continue # skip startup/ directory
 
     local_name=$(basename "$lang_file" .sh)
 
@@ -111,7 +114,7 @@ for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
             chmod +x "$WORKSPACE/run.sh"
 
             result=$(run_benchmark "$lang_name" "$N_RUNS" "$WORKSPACE/run.sh" 2>/dev/null)
-            read -r _vs _vr ra <<< "$result"
+            read -r _vs _vr ra <<<"$result"
             profile_results[$profile]="${ra:-N/A}"
         done
 
@@ -130,7 +133,7 @@ for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
         chmod +x "$WORKSPACE/run.sh"
 
         result=$(run_benchmark "$lang_name" "$N_RUNS" "$WORKSPACE/run.sh" 2>/dev/null)
-        read -r _vs _vr ra <<< "$result"
+        read -r _vs _vr ra <<<"$result"
 
         printf "%-12s | %8s kB | %8s kB |        N/A |        N/A\n" \
             "$lang_name" "${ra:-N/A}" "${ra:-N/A}"
@@ -147,5 +150,5 @@ echo "  - 'stripped' = symboles de debug retirés (-s)."
 echo "  - Interprétés: même résultat debug/release (pas de compilation)."
 
 # Cleanup
-cd /tmp
+cd /tmp || exit 1
 rm -rf "$WORKSPACE"

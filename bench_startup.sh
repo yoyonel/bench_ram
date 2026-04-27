@@ -21,7 +21,10 @@ while getopts "n:f:" opt; do
     case $opt in
         n) N_RUNS="$OPTARG" ;;
         f) OPT_FLAGS="$OPTARG" ;;
-        *) echo "Usage: $0 [-n runs] [-f 'compiler flags']"; exit 1 ;;
+        *)
+            echo "Usage: $0 [-n runs] [-f 'compiler flags']"
+            exit 1
+            ;;
     esac
 done
 
@@ -30,7 +33,7 @@ rm -rf "$WORKSPACE"
 mkdir -p "$WORKSPACE"
 
 # First, measure the shell overhead (empty exec)
-cat > "$WORKSPACE/baseline_run.sh" << 'EOF'
+cat >"$WORKSPACE/baseline_run.sh" <<'EOF'
 #!/bin/bash
 exec true
 EOF
@@ -97,13 +100,12 @@ echo ""
 printf "%-12s | %14s | %14s\n" "Langage" "Startup (µs)" "Startup (ms)"
 echo "---------------------------------------------"
 
-IFS=$'\n' sorted=($(for r in "${RESULTS[@]}"; do
+mapfile -t sorted < <(for r in "${RESULTS[@]}"; do
     echo "$r"
-done | sort -t' ' -k2 -n))
-unset IFS
+done | sort -t' ' -k2 -n)
 
 for line in "${sorted[@]}"; do
-    read -r name time_us <<< "$line"
+    read -r name time_us <<<"$line"
     time_ms=$(awk "BEGIN {printf \"%.2f\", $time_us / 1000}")
     printf "%-12s | %12s | %12s\n" "$name" "${time_us} µs" "${time_ms} ms"
 done
@@ -111,5 +113,5 @@ done
 echo "============================================="
 
 # Cleanup
-cd /tmp
+cd /tmp || exit 1
 rm -rf "$WORKSPACE"

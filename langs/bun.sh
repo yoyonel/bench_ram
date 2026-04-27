@@ -7,7 +7,7 @@ lang_prepare() { :; }
 
 lang_write_runner() {
     local ws="$1"
-    cat > "$ws/run.sh" << 'RUNNER'
+    cat >"$ws/run.sh" <<'RUNNER'
 #!/bin/bash
 exec bun -e 'while(true){}'
 RUNNER

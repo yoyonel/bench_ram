@@ -5,7 +5,7 @@ lang_cmd="go"
 
 lang_prepare() {
     local ws="$1"
-    cat > "$ws/loop.go" << 'EOF'
+    cat >"$ws/loop.go" <<'EOF'
 package main
 
 import "runtime"
@@ -21,6 +21,6 @@ EOF
 
 lang_write_runner() {
     local ws="$1"
-    echo '#!/bin/bash' > "$ws/run.sh"
-    echo "exec \"$ws/loop_go\"" >> "$ws/run.sh"
+    echo '#!/bin/bash' >"$ws/run.sh"
+    echo "exec \"$ws/loop_go\"" >>"$ws/run.sh"
 }
