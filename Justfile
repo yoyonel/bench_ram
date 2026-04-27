@@ -63,18 +63,31 @@ export *ARGS:
     ./bench_startup.sh -o results {{ARGS}}
     ./bench_compare.sh -o results {{ARGS}}
 
+# Generate all ASCII bar charts
+plot: plot-ram plot-startup
+
 # Generate ASCII bar chart from the latest RAM export
 plot-ram:
-    @python3 scripts/plot.py "$$(ls -t results/ram_*.csv 2>/dev/null | head -1)" --ascii
+    #!/bin/bash
+    csv=$(ls -t results/ram_*.csv 2>/dev/null | head -1)
+    [[ -z "$csv" ]] && echo "No RAM export found. Run 'just export' first." && exit 1
+    python3 scripts/plot.py "$csv" --ascii
 
 # Generate ASCII bar chart from the latest startup export
 plot-startup:
-    @python3 scripts/plot.py "$$(ls -t results/startup_*.csv 2>/dev/null | head -1)" --ascii
+    #!/bin/bash
+    csv=$(ls -t results/startup_*.csv 2>/dev/null | head -1)
+    [[ -z "$csv" ]] && echo "No startup export found. Run 'just export' first." && exit 1
+    python3 scripts/plot.py "$csv" --ascii
 
 # Generate PNG charts (requires matplotlib: pip install matplotlib)
 plot-png:
-    @python3 scripts/plot.py "$$(ls -t results/ram_*.csv 2>/dev/null | head -1)" -o results/ram_chart.png
-    @python3 scripts/plot.py "$$(ls -t results/startup_*.csv 2>/dev/null | head -1)" -o results/startup_chart.png
+    #!/bin/bash
+    ram=$(ls -t results/ram_*.csv 2>/dev/null | head -1)
+    startup=$(ls -t results/startup_*.csv 2>/dev/null | head -1)
+    [[ -z "$ram" || -z "$startup" ]] && echo "No exports found. Run 'just export' first." && exit 1
+    python3 scripts/plot.py "$ram" -o results/ram_chart.png
+    python3 scripts/plot.py "$startup" -o results/startup_chart.png
 
 # ─── Utilities ───────────────────────────────────────────────
 
