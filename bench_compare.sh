@@ -10,18 +10,34 @@ set -uo pipefail
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION=$(cat "$SCRIPT_DIR/VERSION")
 WORKSPACE="/tmp/ram_bench_workspace"
 N_RUNS="${BENCH_RUNS:-3}"
 
+# Handle --version / --help before getopts
+case "${1:-}" in
+    --version)
+        echo "bench_compare $VERSION"
+        exit 0
+        ;;
+    --help | -h)
+        echo "Usage: $0 [-n runs] [-o output_dir]"
+        exit 0
+        ;;
+esac
+
 source "$SCRIPT_DIR/lib/utils.sh"
 source "$SCRIPT_DIR/lib/measure.sh"
+source "$SCRIPT_DIR/lib/export.sh"
 
 # Parse arguments
-while getopts "n:" opt; do
+OUTPUT_DIR=""
+while getopts "n:o:" opt; do
     case $opt in
         n) N_RUNS="$OPTARG" ;;
+        o) OUTPUT_DIR="$OPTARG" ;;
         *)
-            echo "Usage: $0 [-n runs]"
+            echo "Usage: $0 [-n runs] [-o output_dir]"
             exit 1
             ;;
     esac
@@ -78,6 +94,9 @@ echo ""
 printf "%-12s | %10s | %10s | %10s | %10s\n" "Langage" "debug" "release" "static" "stripped"
 echo "------------------------------------------------------------------------"
 
+# Collect results for export: "name debug release static stripped"
+declare -a COMPARE_RESULTS=()
+
 # Process each language
 for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
     [[ -d "$lang_file" ]] && continue # skip startup/ directory
@@ -125,6 +144,8 @@ for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
             "${profile_results[static]}" \
             "${profile_results[stripped]}"
 
+        COMPARE_RESULTS+=("$lang_name ${profile_results[debug]} ${profile_results[release]} ${profile_results[static]} ${profile_results[stripped]}")
+
         unset profile_results
     else
         # Interpreted: run once, show same value across all columns
@@ -137,6 +158,8 @@ for lang_file in "$SCRIPT_DIR"/langs/*.sh; do
 
         printf "%-12s | %8s kB | %8s kB |        N/A |        N/A\n" \
             "$lang_name" "${ra:-N/A}" "${ra:-N/A}"
+
+        COMPARE_RESULTS+=("$lang_name ${ra:-N/A} ${ra:-N/A} N/A N/A")
     fi
 
     printf "  ✓ %-12s done\n" "$lang_name" >&2
@@ -148,6 +171,11 @@ echo "Notes:"
 echo "  - 'static' = linkage statique (pas de .so). Peut ne pas compiler partout."
 echo "  - 'stripped' = symboles de debug retirés (-s)."
 echo "  - Interprétés: même résultat debug/release (pas de compilation)."
+
+# Export results if -o specified
+if [[ -n "$OUTPUT_DIR" ]]; then
+    export_all "compare" "$OUTPUT_DIR" "${COMPARE_RESULTS[@]}"
+fi
 
 # Cleanup
 cd /tmp || exit 1

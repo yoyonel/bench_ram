@@ -10,21 +10,37 @@ set -uo pipefail
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION=$(cat "$SCRIPT_DIR/VERSION")
 WORKSPACE="/tmp/ram_bench_workspace"
 N_RUNS="${BENCH_RUNS:-5}"
+
+# Handle --version / --help before getopts
+case "${1:-}" in
+    --version)
+        echo "bench_ram $VERSION"
+        exit 0
+        ;;
+    --help | -h)
+        echo "Usage: $0 [-n runs] [-f 'compiler flags'] [-o output_dir]"
+        exit 0
+        ;;
+esac
 
 # Source libraries
 source "$SCRIPT_DIR/lib/utils.sh"
 source "$SCRIPT_DIR/lib/measure.sh"
+source "$SCRIPT_DIR/lib/export.sh"
 
 # Parse arguments
 OPT_FLAGS=""
-while getopts "n:f:" opt; do
+OUTPUT_DIR=""
+while getopts "n:f:o:" opt; do
     case $opt in
         n) N_RUNS="$OPTARG" ;;
         f) OPT_FLAGS="$OPTARG" ;; # e.g. "-O3" or "-O0 -static"
+        o) OUTPUT_DIR="$OPTARG" ;;
         *)
-            echo "Usage: $0 [-n runs] [-f 'compiler flags']"
+            echo "Usage: $0 [-n runs] [-f 'compiler flags'] [-o output_dir]"
             exit 1
             ;;
     esac
@@ -93,6 +109,11 @@ for line in "${sorted[@]}"; do
 done
 
 echo "======================================================================="
+
+# Export results if -o specified
+if [[ -n "$OUTPUT_DIR" ]]; then
+    export_all "ram" "$OUTPUT_DIR" "${sorted[@]}"
+fi
 
 # Cleanup
 cd /tmp || exit 1
