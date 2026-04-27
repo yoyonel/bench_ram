@@ -1,0 +1,5 @@
+# bench_ram — generated files
+results/
+/tmp/
+*.o
+*.class
