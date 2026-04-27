@@ -151,20 +151,17 @@ bench_ram/
 ├── Justfile              # Tâches (just --list pour voir les recettes)
 ├── VERSION               # Version semver du projet
 ├── lib/
+│   ├── engine.sh         # Moteur commun (init, itération langages, cleanup)
 │   ├── measure.sh        # Moteur de mesure RAM (poll, stabilisation, médiane)
 │   ├── startup.sh        # Moteur de mesure startup time
-│   ├── export.sh         # Export CSV / JSON / Markdown
+│   ├── export.sh         # Export schema-driven CSV / JSON / Markdown
 │   └── utils.sh          # Utilitaires (check_cmd, median, formatage)
 ├── scripts/
 │   └── plot.py           # Génération de graphiques (ASCII ou PNG via matplotlib)
-├── langs/                # Un fichier par langage (boucle infinie)
+├── langs/                # Un fichier par langage (RAM + startup + compare)
 │   ├── c.sh
 │   ├── cpp.sh
 │   ├── rust.sh
-│   └── ...
-├── langs/startup/        # Un fichier par langage (exit immédiat)
-│   ├── c.sh
-│   ├── cpp.sh
 │   └── ...
 ├── results/              # Exports générés (gitignored)
 ├── docs/
@@ -207,7 +204,20 @@ Créer un fichier `langs/<lang>.sh` avec cette structure :
 #!/bin/bash
 lang_name="MonLangage"
 lang_cmd="moncompilateur"  # Commande vérifiée par check_cmd
+lang_type="compiled"       # "compiled" ou "interpreted"
 
+# (Optionnel, langages compilés) Flags par profil pour bench_compare
+lang_compare_flags() {
+    local profile="$1"
+    case "$profile" in
+        debug) echo "-O0 -g" ;;
+        release) echo "-O2" ;;
+        static) echo "-O2 -static" ;;
+        stripped) echo "-O2 -s" ;;
+    esac
+}
+
+# RAM benchmark — boucle infinie
 lang_prepare() {
     local ws="$1" flags="${2:--O2}"
     # Écrire le source et compiler dans $ws
@@ -218,6 +228,18 @@ lang_write_runner() {
     echo '#!/bin/bash' > "$ws/run.sh"
     echo "exec \"$ws/mon_binaire\"" >> "$ws/run.sh"
 }
+
+# Startup benchmark — exit immédiat
+lang_startup_prepare() {
+    local ws="$1" flags="${2:--O2}"
+    # Écrire le source et compiler dans $ws
+}
+
+lang_startup_runner() {
+    local ws="$1"
+    echo '#!/bin/bash' > "$ws/startup_run.sh"
+    echo "exec \"$ws/mon_binaire_startup\"" >> "$ws/startup_run.sh"
+}
 ```
 
-Le fichier est auto-découvert par l'orchestrateur — aucune modification de `bench_ram.sh` nécessaire.
+Le fichier est auto-découvert par le moteur — aucune modification des orchestrateurs nécessaire.
