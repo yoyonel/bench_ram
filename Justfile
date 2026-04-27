@@ -96,3 +96,20 @@ check:
     echo "---"
     echo "$ok OK, $fail issues"
     [[ $fail -eq 0 ]]
+
+# ─── Lint & Format ───────────────────────────────────────────
+
+# Run shellcheck on all scripts
+lint:
+    shellcheck bench_ram.sh bench_startup.sh bench_compare.sh lib/*.sh langs/*.sh langs/startup/*.sh
+
+# Check formatting (no changes, exit 1 if diff)
+format-check:
+    shfmt -d -i 4 -bn -ci bench_ram.sh bench_startup.sh bench_compare.sh lib/*.sh langs/*.sh langs/startup/*.sh
+
+# Auto-format all scripts in-place
+format:
+    shfmt -w -i 4 -bn -ci bench_ram.sh bench_startup.sh bench_compare.sh lib/*.sh langs/*.sh langs/startup/*.sh
+
+# Run both lint and format check
+ci: lint format-check
