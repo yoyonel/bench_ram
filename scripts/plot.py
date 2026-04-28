@@ -16,7 +16,8 @@ from pathlib import Path
 
 def read_csv(path):
     with open(path, newline="") as f:
-        reader = csv.DictReader(f)
+        lines = (line for line in f if not line.startswith("#"))
+        reader = csv.DictReader(lines)
         return list(reader)
 
 

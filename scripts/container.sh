@@ -45,6 +45,8 @@ run_container() {
     "$RUNTIME" run --rm \
         -v "$SCRIPT_DIR:/bench:ro" \
         -v "$SCRIPT_DIR/results:/bench/results" \
+        -e "BENCH_CONTAINER_IMAGE=${IMAGE_NAME}:${IMAGE_TAG}" \
+        -e "BENCH_CONTAINER_RUNTIME=$RUNTIME" \
         "${IMAGE_NAME}:${IMAGE_TAG}" \
         "$@"
 }
@@ -117,9 +119,13 @@ case "$CMD" in
                 lang_name="" lang_cmd=""
                 source "$f"
                 if command -v "$lang_cmd" >/dev/null 2>&1; then
-                    ver=$("$lang_cmd" --version 2>/dev/null | head -1 || echo "installed")
-                    [[ -z "$ver" || "$ver" == *"usage"* || "$ver" == *"flag"* ]] && \
-                        ver=$("$lang_cmd" version 2>/dev/null | head -1 || echo "installed")
+                    ver=""
+                    for flag in --version -v version -V; do
+                        ver=$("$lang_cmd" $flag 2>/dev/null | grep -m1 . || true)
+                        [[ -n "$ver" && "$ver" != *"usage"* && "$ver" != *"flag"* ]] && break
+                        ver=""
+                    done
+                    : "${ver:=installed}"
                     printf "%-12s | %-12s | %s\n" "$lang_name" "$lang_cmd" "$ver"
                 else
                     printf "%-12s | %-12s | NOT FOUND\n" "$lang_name" "$lang_cmd"

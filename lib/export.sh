@@ -2,14 +2,68 @@
 # export.sh — Export benchmark results to CSV, JSON, and Markdown.
 # Schema-driven: field definitions live in export_all, format writers are generic.
 
+# ── Environment detection ────────────────────────────────────
+
+# Detect if running inside a container.
+_detect_environment() {
+    if [[ -n "${BENCH_CONTAINER_IMAGE:-}" ]] \
+        || [[ -f /.dockerenv ]] || [[ -f /run/.containerenv ]] \
+        || grep -qsE 'docker|containerd|podman' /proc/1/cgroup 2>/dev/null; then
+        echo "container"
+    else
+        echo "native"
+    fi
+}
+
+# Build metadata JSON fragment for embedding in exports.
+_build_metadata_json() {
+    local type="$1"
+    local env kernel version ts
+    env=$(_detect_environment)
+    kernel=$(uname -r)
+    version="${VERSION:-unknown}"
+    ts=$(date -Iseconds)
+
+    printf '  "metadata": {\n'
+    printf '    "benchmark_type": "%s",\n' "$type"
+    printf '    "timestamp": "%s",\n' "$ts"
+    printf '    "version": "%s",\n' "$version"
+    printf '    "environment": "%s",\n' "$env"
+    printf '    "kernel_version": "%s"' "$kernel"
+    if [[ "$env" == "container" ]]; then
+        printf ',\n    "container_image": "%s"' "${BENCH_CONTAINER_IMAGE:-unknown}"
+        printf ',\n    "container_runtime": "%s"' "${BENCH_CONTAINER_RUNTIME:-unknown}"
+    fi
+    printf '\n  }'
+}
+
+# Build metadata comment line for CSV headers.
+_build_metadata_csv() {
+    local type="$1"
+    local env kernel version ts
+    env=$(_detect_environment)
+    kernel=$(uname -r)
+    version="${VERSION:-unknown}"
+    ts=$(date -Iseconds)
+
+    printf '# benchmark_type=%s;timestamp=%s;version=%s;environment=%s;kernel_version=%s' \
+        "$type" "$ts" "$version" "$env" "$kernel"
+    if [[ "$env" == "container" ]]; then
+        printf ';container_image=%s;container_runtime=%s' \
+            "${BENCH_CONTAINER_IMAGE:-unknown}" "${BENCH_CONTAINER_RUNTIME:-unknown}"
+    fi
+    printf '\n'
+}
+
 # ── Generic format writers ───────────────────────────────────
 
 # Write CSV file from space-separated results.
-# Usage: _export_csv <output> <header> <results...>
+# Usage: _export_csv <output> <metadata_comment> <header> <results...>
 _export_csv() {
-    local output="$1" header="$2"
-    shift 2
+    local output="$1" metadata="$2" header="$3"
+    shift 3
     {
+        [[ -n "$metadata" ]] && echo "$metadata"
         echo "$header"
         for line in "$@"; do
             echo "${line// /,}"
@@ -18,23 +72,32 @@ _export_csv() {
 }
 
 # Write JSON file from space-separated results.
-# Usage: _export_json <output> <keys> <types> <results...>
+# Usage: _export_json <output> <metadata_json> <keys> <types> <results...>
+# metadata_json: output of _build_metadata_json (empty string = plain array)
 # keys: space-separated JSON field names
 # types: space-separated (s=string, n=number), matching keys positionally
 _export_json() {
-    local output="$1"
+    local output="$1" metadata="$2"
     local -a keys types
-    read -ra keys <<<"$2"
-    read -ra types <<<"$3"
-    shift 3
+    read -ra keys <<<"$3"
+    read -ra types <<<"$4"
+    shift 4
+    local indent="  "
     {
-        echo "["
+        if [[ -n "$metadata" ]]; then
+            echo "{"
+            echo "$metadata,"
+            echo '  "results": ['
+            indent="    "
+        else
+            echo "["
+        fi
         local first=1
         for line in "$@"; do
             local -a vals
             read -ra vals <<<"$line"
             [[ $first -eq 0 ]] && echo ","
-            printf '  {'
+            printf '%s{' "$indent"
             for i in "${!keys[@]}"; do
                 ((i > 0)) && printf ', '
                 if [[ "${vals[$i]}" == "N/A" ]]; then
@@ -49,7 +112,12 @@ _export_json() {
             first=0
         done
         echo ""
-        echo "]"
+        if [[ -n "$metadata" ]]; then
+            echo "  ]"
+            echo "}"
+        else
+            echo "]"
+        fi
     } >"$output"
 }
 
@@ -103,12 +171,17 @@ export_all() {
     ts=$(date +%Y%m%d_%H%M%S)
     local base="$outdir/${type}_${ts}"
 
+    # Collect environment metadata
+    local meta_json meta_csv
+    meta_json=$(_build_metadata_json "$type")
+    meta_csv=$(_build_metadata_csv "$type")
+
     case "$type" in
         ram)
-            _export_csv "$base.csv" \
+            _export_csv "$base.csv" "$meta_csv" \
                 "language,vmsize_kb,vmrss_kb,rssanon_kb" \
                 "${results[@]}"
-            _export_json "$base.json" \
+            _export_json "$base.json" "$meta_json" \
                 "language vmsize_kb vmrss_kb rssanon_kb" \
                 "s n n n" \
                 "${results[@]}"
@@ -119,10 +192,10 @@ export_all() {
                 "${results[@]}"
             ;;
         startup)
-            _export_csv "$base.csv" \
+            _export_csv "$base.csv" "$meta_csv" \
                 "language,startup_us" \
                 "${results[@]}"
-            _export_json "$base.json" \
+            _export_json "$base.json" "$meta_json" \
                 "language startup_us" \
                 "s n" \
                 "${results[@]}"
@@ -133,10 +206,10 @@ export_all() {
                 "${results[@]}"
             ;;
         compare)
-            _export_csv "$base.csv" \
+            _export_csv "$base.csv" "$meta_csv" \
                 "language,debug_kb,release_kb,static_kb,stripped_kb" \
                 "${results[@]}"
-            _export_json "$base.json" \
+            _export_json "$base.json" "$meta_json" \
                 "language debug_kb release_kb static_kb stripped_kb" \
                 "s n n n n" \
                 "${results[@]}"
