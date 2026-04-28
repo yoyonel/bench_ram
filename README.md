@@ -113,10 +113,6 @@ just container-export
 # Outils
 just container-langs             # Versions des toolchains dans l'image
 just container-shell             # Shell interactif dans le conteneur
-
-# Validation: delta container vs natif (< 5% sur RssAnon)
-just container-validate          # 3 runs par défaut
-just container-validate -- -n 5  # 5 runs pour plus de précision
 ```
 
 L'image utilise **glibc** (pas musl/Alpine) pour que les mesures RAM soient identiques à celles en natif. Le runtime est auto-détecté (Podman prioritaire, puis Docker). Voir [docs/containerization.md](docs/containerization.md) pour l'analyse détaillée.
@@ -194,7 +190,6 @@ bench_ram/
 │   └── utils.sh          # Utilitaires (check_cmd, median, formatage)
 ├── scripts/
 │   ├── container.sh      # Orchestration Docker/Podman
-│   ├── validate_delta.sh # Validation delta container vs natif
 │   ├── test_container.sh # Tests de non-régression conteneur
 │   └── plot.py           # Génération de graphiques (ASCII ou PNG via matplotlib)
 ├── langs/                # Un fichier par langage (RAM + startup + compare)

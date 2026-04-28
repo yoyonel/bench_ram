@@ -185,7 +185,3 @@ container-shell:
 # List languages and versions available in the container
 container-langs:
     ./scripts/container.sh langs
-
-# Validate container vs native delta (< 5% on RssAnon)
-container-validate *ARGS:
-    ./scripts/validate_delta.sh {{ARGS}}
