@@ -1,0 +1,9 @@
+.git/
+.vscode/
+results/
+__pycache__/
+.venv/
+*.png
+*.o
+*.class
+docs/

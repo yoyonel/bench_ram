@@ -151,3 +151,41 @@ format:
 
 # Run both lint and format check
 ci: lint format-check
+
+# ─── Container Execution ─────────────────────────────────────
+
+# Build the container image
+container-build:
+    ./scripts/container.sh build
+
+# Run RAM benchmark in container
+container-ram *ARGS:
+    ./scripts/container.sh ram {{ARGS}}
+
+# Run startup benchmark in container
+container-startup *ARGS:
+    ./scripts/container.sh startup {{ARGS}}
+
+# Run compare benchmark in container
+container-compare *ARGS:
+    ./scripts/container.sh compare {{ARGS}}
+
+# Run all benchmarks in container
+container-all *ARGS:
+    ./scripts/container.sh all {{ARGS}}
+
+# Export all benchmarks results from container
+container-export *ARGS:
+    ./scripts/container.sh export {{ARGS}}
+
+# Open interactive shell in the container (debug)
+container-shell:
+    ./scripts/container.sh shell
+
+# List languages and versions available in the container
+container-langs:
+    ./scripts/container.sh langs
+
+# Validate container vs native delta (< 5% on RssAnon)
+container-validate *ARGS:
+    ./scripts/validate_delta.sh {{ARGS}}

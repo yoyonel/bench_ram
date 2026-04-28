@@ -88,6 +88,35 @@ pip install matplotlib
 just plot-png
 ```
 
+## Exécution en conteneur (Docker / Podman)
+
+L'ensemble des 15 toolchains est pré-installé dans une image Docker basée sur `debian:bookworm-slim`. Aucune installation locale n'est requise.
+
+```bash
+# Construire l'image (automatique au premier run)
+just container-build
+
+# Benchmarks
+just container-ram               # RAM uniquement
+just container-startup           # Startup uniquement
+just container-compare           # Comparatif debug/release/static/stripped
+just container-all               # Les 3 benchmarks
+just container-all -- -n 3       # Avec options (3 runs)
+
+# Export des résultats dans results/
+just container-export
+
+# Outils
+just container-langs             # Versions des toolchains dans l'image
+just container-shell             # Shell interactif dans le conteneur
+
+# Validation: delta container vs natif (< 5% sur RssAnon)
+just container-validate          # 3 runs par défaut
+just container-validate -- -n 5  # 5 runs pour plus de précision
+```
+
+L'image utilise **glibc** (pas musl/Alpine) pour que les mesures RAM soient identiques à celles en natif. Le runtime est auto-détecté (Podman prioritaire, puis Docker). Voir [docs/containerization.md](docs/containerization.md) pour l'analyse détaillée.
+
 ## Exemple de sortie
 
 ### bench_ram.sh
@@ -139,7 +168,8 @@ Les résultats sont triés par **RssAnon croissant** (le plus léger en premier)
 
 - Linux (nécessite `/proc/[pid]/status`)
 - Bash 4+
-- Les compilateurs/interprètes des langages à tester
+- **Mode natif :** les compilateurs/interprètes des langages à tester
+- **Mode conteneur :** Docker ou Podman (les 15 toolchains sont dans l'image)
 
 ## Structure du projet
 
@@ -149,6 +179,8 @@ bench_ram/
 ├── bench_startup.sh      # Benchmark temps de démarrage
 ├── bench_compare.sh      # Comparatif debug/release/static/stripped
 ├── Justfile              # Tâches (just --list pour voir les recettes)
+├── Dockerfile            # Image multi-toolchains (15 langages)
+├── .dockerignore         # Exclusions pour le build context
 ├── VERSION               # Version semver du projet
 ├── lib/
 │   ├── engine.sh         # Moteur commun (init, itération langages, cleanup)
@@ -157,6 +189,9 @@ bench_ram/
 │   ├── export.sh         # Export schema-driven CSV / JSON / Markdown
 │   └── utils.sh          # Utilitaires (check_cmd, median, formatage)
 ├── scripts/
+│   ├── container.sh      # Orchestration Docker/Podman
+│   ├── validate_delta.sh # Validation delta container vs natif
+│   ├── test_container.sh # Tests de non-régression conteneur
 │   └── plot.py           # Génération de graphiques (ASCII ou PNG via matplotlib)
 ├── langs/                # Un fichier par langage (RAM + startup + compare)
 │   ├── c.sh
@@ -165,7 +200,9 @@ bench_ram/
 │   └── ...
 ├── results/              # Exports générés (gitignored)
 ├── docs/
-│   └── architecture.md   # Choix techniques et méthodologie
+│   ├── architecture.md       # Choix techniques et méthodologie
+│   ├── containerization.md   # Analyse conteneurisation (overhead, image, musl vs glibc)
+│   └── roadmap-v0.3.md       # Roadmap v0.3
 ├── .github/
 │   └── workflows/ci.yml  # CI GitHub Actions (shellcheck + shfmt)
 ├── .pre-commit-config.yaml

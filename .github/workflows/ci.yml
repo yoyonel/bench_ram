@@ -1,4 +1,4 @@
-name: CI — Lint & Format
+name: CI
 
 on:
   push:
@@ -40,4 +40,95 @@ jobs:
         run: |
           shfmt -d -i 4 -bn -ci \
             bench_ram.sh bench_startup.sh bench_compare.sh \
-            lib/*.sh langs/*.sh
+            lib/*.sh langs/*.sh scripts/*.sh
+
+  container:
+    name: Container Build & Bench
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: bench_ram:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify toolchains
+        run: |
+          docker run --rm bench_ram:ci bash -c '
+            for cmd in gcc g++ python3 ruby perl php lua java node go rustc zig nim v bun; do
+              command -v "$cmd" >/dev/null 2>&1 || { echo "✗ $cmd MISSING"; exit 1; }
+              echo "✓ $cmd"
+            done
+            echo "=== All 15 toolchains OK ==="
+          '
+
+      - name: RAM benchmark (n=1, with export)
+        run: |
+          docker run --rm \
+            -v "$PWD:/bench:ro" \
+            -v "$PWD/results:/bench/results" \
+            -e BENCH_CONTAINER_IMAGE=bench_ram:ci \
+            -e BENCH_CONTAINER_RUNTIME=docker \
+            bench_ram:ci ./bench_ram.sh -n 1 -o results
+
+      - name: Startup benchmark (n=1, with export)
+        run: |
+          docker run --rm \
+            -v "$PWD:/bench:ro" \
+            -v "$PWD/results:/bench/results" \
+            -e BENCH_CONTAINER_IMAGE=bench_ram:ci \
+            -e BENCH_CONTAINER_RUNTIME=docker \
+            bench_ram:ci ./bench_startup.sh -n 1 -o results
+
+      - name: Compare benchmark (n=1, with export)
+        run: |
+          docker run --rm \
+            -v "$PWD:/bench:ro" \
+            -v "$PWD/results:/bench/results" \
+            -e BENCH_CONTAINER_IMAGE=bench_ram:ci \
+            -e BENCH_CONTAINER_RUNTIME=docker \
+            bench_ram:ci ./bench_compare.sh -n 1 -o results
+
+      - name: Validate export formats
+        run: |
+          python3 -c "
+          import json, glob, sys
+          errors = []
+          for pattern, expected_key in [('ram', 'rssanon_kb'), ('startup', 'startup_us'), ('compare', 'debug_kb')]:
+              files = sorted(glob.glob(f'results/{pattern}_*.json'))
+              if not files:
+                  errors.append(f'No {pattern} JSON export found')
+                  continue
+              f = files[-1]
+              d = json.load(open(f))
+              if 'metadata' not in d:
+                  errors.append(f'{f}: missing metadata')
+              elif 'results' not in d:
+                  errors.append(f'{f}: missing results')
+              elif len(d['results']) < 15:
+                  errors.append(f'{f}: only {len(d[\"results\"])} results (expected 15)')
+              elif expected_key not in d['results'][0]:
+                  errors.append(f'{f}: missing key {expected_key}')
+              else:
+                  print(f'✓ {pattern}: {len(d[\"results\"])} langs, env={d[\"metadata\"][\"environment\"]}')
+          if errors:
+              for e in errors:
+                  print(f'✗ {e}', file=sys.stderr)
+              sys.exit(1)
+          "
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: results/
+          retention-days: 30

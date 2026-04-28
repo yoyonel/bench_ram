@@ -3,3 +3,6 @@ results/
 /tmp/
 *.o
 *.class
+
+# IDE
+.vscode/

@@ -21,7 +21,7 @@ lang_write_runner() {
 lang_startup_prepare() {
     local ws="$1"
     echo 'discard' >"$ws/startup_nim.nim"
-    nim c -d:release --hints:off --outdir:"$ws" -o:startup_nim "$ws/startup_nim.nim" >/dev/null 2>&1
+    nim c -d:release --hints:off -o:"$ws/startup_nim" "$ws/startup_nim.nim" >/dev/null 2>&1
 }
 
 lang_startup_runner() {
