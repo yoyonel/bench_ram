@@ -1,5 +1,9 @@
 # bench_ram
 
+[![CI](https://github.com/yoyonel/bench_ram/actions/workflows/ci.yml/badge.svg)](https://github.com/yoyonel/bench_ram/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/yoyonel/bench_ram)](https://github.com/yoyonel/bench_ram/releases/latest)
+[![License](https://img.shields.io/github/license/yoyonel/bench_ram)](LICENSE)
+
 Benchmark de l'empreinte RAM minimale absolue de différents langages de programmation sous Linux.
 
 ## Principe
