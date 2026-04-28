@@ -22,6 +22,6 @@ lang_startup_runner() {
     local ws="$1"
     cat >"$ws/startup_run.sh" <<'RUNNER'
 #!/bin/bash
-exec bun -e ''
+exec bun -e 'process.exit(0)'
 RUNNER
 }

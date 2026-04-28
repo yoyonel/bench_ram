@@ -14,12 +14,13 @@ public class Loop {
     }
 }
 EOF
+    javac -d "$ws" "$ws/Loop.java"
 }
 
 lang_write_runner() {
     local ws="$1"
     echo '#!/bin/bash' >"$ws/run.sh"
-    echo "exec java -cp \"$ws\" Loop.java" >>"$ws/run.sh"
+    echo "exec java -cp \"$ws\" Loop" >>"$ws/run.sh"
 }
 
 # Startup benchmark — immediate exit
@@ -30,10 +31,11 @@ public class Startup {
     public static void main(String[] args) {}
 }
 EOF
+    javac -d "$ws" "$ws/Startup.java"
 }
 
 lang_startup_runner() {
     local ws="$1"
     echo '#!/bin/bash' >"$ws/startup_run.sh"
-    echo "exec java -cp \"$ws\" Startup.java" >>"$ws/startup_run.sh"
+    echo "exec java -cp \"$ws\" Startup" >>"$ws/startup_run.sh"
 }
