@@ -195,3 +195,65 @@ Contre-intuitif : le binaire est plus gros, mais RssAnon baisse. Explication :
 
 Les flags de compilation ne s'appliquent pas — l'interprète est déjà compilé par le système. La valeur est affichée une seule fois pour référence.
 
+## Conteneurisation (Docker / Podman)
+
+### Pourquoi conteneuriser ?
+
+Le mode natif nécessite l'installation manuelle des 15 toolchains. Selon la distribution, certains langages (Zig, Nim, V, Bun) requièrent des PPA ou des installations manuelles. Le conteneur résout ce problème : une seule commande, résultats reproductibles.
+
+### Choix de l'image de base : `debian:bookworm-slim`
+
+| Option | Verdict | Raison |
+|--------|---------|--------|
+| **Alpine** | Rejeté | musl libc change fondamentalement les mesures RAM (5-10x différence sur malloc/mmap). Le benchmark mesure le runtime, pas la libc. |
+| **Ubuntu** | Possible | Mais plus lourd, pas de valeur ajoutée par rapport à Debian pour ce use-case. |
+| **debian:bookworm-slim** | Retenu | glibc (même mesures que natif), ~80 MB, packages stables, bon support des 15 toolchains. |
+
+### Overhead conteneur
+
+L'overhead Docker/Podman sur les mesures RAM est **nul** — les conteneurs Linux utilisent les mêmes namespaces, le même `/proc/[pid]/status`, le même kernel. Les process-level metrics (VmRSS, RssAnon) ne sont pas affectées par la conteneurisation car ce ne sont pas des VMs.
+
+### Architecture du wrapper (`scripts/container.sh`)
+
+Le script d'orchestration :
+1. **Auto-détecte** le runtime (Podman prioritaire, puis Docker)
+2. **Monte** le projet en read-only (`/bench:ro`) avec `results/` en read-write
+3. **Passe** les variables d'environnement `BENCH_CONTAINER_IMAGE` et `BENCH_CONTAINER_RUNTIME` pour la détection dans les exports
+4. **Dispatch** les commandes vers les scripts de benchmark dans le conteneur
+
+### Métadonnées d'environnement dans les exports
+
+Quand les benchmarks sont exécutés en conteneur, les exports incluent automatiquement :
+
+**JSON** — structure wrappée :
+```json
+{
+  "metadata": {
+    "benchmark_type": "ram",
+    "timestamp": "2026-04-28T14:03:47+00:00",
+    "version": "0.2.0",
+    "environment": "container",
+    "kernel_version": "6.12.73+deb13-amd64",
+    "container_image": "bench_ram:0.2.0",
+    "container_runtime": "podman"
+  },
+  "results": [...]
+}
+```
+
+**CSV** — ligne de commentaire préfixée par `#` :
+```
+# benchmark_type=ram;timestamp=...;environment=container;container_image=bench_ram:0.2.0;...
+language,vmsize_kb,vmrss_kb,rssanon_kb
+```
+
+En mode natif, les champs `container_*` sont absents et `environment=native`.
+
+### Adaptateurs modifiés pour le conteneur
+
+Trois langages nécessitaient des corrections pour fonctionner dans l'environnement conteneur :
+
+- **Java** : `java -cp "$ws" Loop` au lieu du source-file mode (incompatible avec `-cp`)
+- **Bun** : `bun -e 'process.exit(0)'` au lieu de `bun -e ''` (chaîne vide déclenche l'aide)
+- **Nim** : chemin absolu pour `-o:` (le chemin relatif résolvait dans `/bench/` monté en read-only)
+
